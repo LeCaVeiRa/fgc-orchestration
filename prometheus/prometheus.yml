@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'fgc-users-api'
+    static_configs:
+      - targets: ['fgc-users-api:8080']
+
+  - job_name: 'fgc-catalog-api'
+    static_configs:
+      - targets: ['fgc-catalog-api:8080']

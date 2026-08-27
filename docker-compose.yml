@@ -27,9 +27,15 @@ services:
       - RabbitMq__Host=rabbitmq
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      - AWS__DynamoDB__ServiceUrl=http://dynamodb-local:8000
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - AWS_REGION=us-east-1
     depends_on:
       rabbitmq:
         condition: service_healthy
+      dynamodb-local:
+        condition: service_started
     networks:
       - fgc_network
 
@@ -44,9 +50,38 @@ services:
       - RabbitMq__Host=rabbitmq
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      - AWS__DynamoDB__ServiceUrl=http://dynamodb-local:8000
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - AWS_REGION=us-east-1
+      - Redis__ConnectionString=redis:6379
     depends_on:
       rabbitmq:
         condition: service_healthy
+      dynamodb-local:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - fgc_network
+
+  dynamodb-local:
+    image: amazon/dynamodb-local
+    container_name: fgc-dynamodb-local
+    ports:
+      # Host 8500 -> container 8000: porta 8000 do host já é do proxy do Kong. Os serviços .NET
+      # falam com este container pela rede interna (http://dynamodb-local:8000), então essa
+      # remapeamento só afeta acesso a partir do host (ex.: `aws dynamodb ... --endpoint-url`).
+      - "8500:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    networks:
+      - fgc_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: fgc-redis
+    ports:
+      - "6379:6379"
     networks:
       - fgc_network
 
@@ -67,26 +102,91 @@ services:
     networks:
       - fgc_network
 
-  fgc-notifications-api:
-    build:
-      context: ../fgc-notifications-api
-      dockerfile: Dockerfile
-    container_name: fgc-notifications-api
+  # fgc-notifications-api foi descomissionado: a lógica de notificações agora roda como Lambda
+  # em fgc-notifications-lambda (ver README). O repositório antigo continua intocado, só não
+  # sobe mais junto com o resto do stack.
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: fgc-localstack
     ports:
-      - "5060:8080"
+      - "4566:4566"
     environment:
-      - MassTransit__Host=rabbitmq
-      - MassTransit__VirtualHost=/
-      - MassTransit__Username=admin
-      - MassTransit__Password=admin
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8080
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - SERVICES=lambda,dynamodb,apigateway,iam,cloudformation,logs,sts,cloudwatch
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      # Community edition ainda exige uma conta LocalStack gratuita para ativar (mesmo sem usar
+      # nenhum recurso Pro) - crie uma em https://app.localstack.cloud e gere o token para
+      # rodar este serviço. Sem ele o container sobe e sai (exit 55, "License activation failed").
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - localstack-data:/var/lib/localstack
     networks:
       - fgc_network
+
+  kong:
+    build:
+      context: ./kong
+      dockerfile: Dockerfile
+    container_name: fgc-kong
+    environment:
+      - KONG_DATABASE=off
+      - KONG_DECLARATIVE_CONFIG=/tmp/kong.yml
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      # JWT_SECRET precisa bater com Jwt:Key em fgc-users-api/fgc-catalog-api (appsettings.json).
+      - JWT_SECRET=FgcUsers-Auth-JWT-Key-2026-Strong-And-Secure
+      # Placeholder até `samlocal deploy` (ver fgc-notifications-lambda/README.md) imprimir a URL
+      # real da HistoryApi no LocalStack; depois disso, sobrescrever via fgc-orchestration/.env e
+      # `docker compose up -d --build kong` para regenerar o kong.yml com o endpoint real.
+      - NOTIFICATIONS_HISTORY_URL=${NOTIFICATIONS_HISTORY_URL:-http://localstack:4566/restapis/PLACEHOLDER/local/_user_request_}
+    volumes:
+      - ./kong/kong.yml.template:/kong-src/kong.yml.template:ro
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+    depends_on:
+      - fgc-users-api
+      - fgc-catalog-api
+    networks:
+      - fgc_network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fgc-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - fgc_network
+    depends_on:
+      - fgc-users-api
+      - fgc-catalog-api
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fgc-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - fgc_network
+    depends_on:
+      - prometheus
 
 networks:
   fgc_network:
     driver: bridge
+
+volumes:
+  localstack-data:

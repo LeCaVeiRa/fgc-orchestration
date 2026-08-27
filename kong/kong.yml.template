@@ -1,0 +1,63 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: users-api
+    url: http://fgc-users-api:8080
+    routes:
+      - name: users-auth-public
+        paths: ["/auth", "/setup"]
+        strip_path: false
+      - name: users-authenticated
+        paths: ["/users"]
+        strip_path: false
+        plugins:
+          - name: jwt
+      - name: users-admin
+        paths: ["/admin/users"]
+        strip_path: false
+        plugins:
+          - name: jwt
+
+  - name: catalog-api
+    url: http://fgc-catalog-api:8080
+    routes:
+      - name: games-public
+        paths: ["/games"]
+        methods: ["GET"]
+        strip_path: false
+      - name: games-admin
+        paths: ["/games"]
+        methods: ["POST", "PUT", "DELETE"]
+        strip_path: false
+        plugins:
+          - name: jwt
+
+  - name: notifications-history
+    # Dev: endpoint HTTP do LocalStack (API Gateway emulado, ver fgc-orchestration/docker-compose.yml).
+    # Produção: URL real do API Gateway (saída HistoryApiUrl do template.yaml em fgc-notifications-lambda),
+    # injetada via envsubst no NOTIFICATIONS_HISTORY_URL antes do Kong subir - ver kong/docker-entrypoint.sh.
+    url: ${NOTIFICATIONS_HISTORY_URL}
+    routes:
+      - name: notifications-history-route
+        paths: ["/notifications"]
+        strip_path: false
+        plugins:
+          - name: jwt
+
+consumers:
+  - username: fgc-platform
+    jwt_secrets:
+      # "key" precisa bater com a claim "iss" dos tokens emitidos por JwtTokenGenerator.cs
+      # (fgc-users-api) - é o que o plugin jwt do Kong usa para achar qual segredo validar.
+      - key: "Fgc.UsersAPI"
+        algorithm: HS256
+        secret: ${JWT_SECRET}
+
+plugins:
+  - name: cors
+    config:
+      origins: ["*"]
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      headers: ["Authorization", "Content-Type"]
+      credentials: false
