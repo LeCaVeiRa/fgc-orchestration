@@ -31,10 +31,13 @@ services:
       - AWS_ACCESS_KEY_ID=local
       - AWS_SECRET_ACCESS_KEY=local
       - AWS_REGION=us-east-1
+      - Redis__ConnectionString=redis:6379
     depends_on:
       rabbitmq:
         condition: service_healthy
       dynamodb-local:
+        condition: service_started
+      redis:
         condition: service_started
     networks:
       - fgc_network
@@ -112,12 +115,12 @@ services:
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=lambda,dynamodb,apigateway,iam,cloudformation,logs,sts,cloudwatch
+      - SERVICES=lambda,dynamodb,apigateway,iam,cloudformation,logs,sts,cloudwatch,secretsmanager,mq
       - DOCKER_HOST=unix:///var/run/docker.sock
       # Community edition ainda exige uma conta LocalStack gratuita para ativar (mesmo sem usar
       # nenhum recurso Pro) - crie uma em https://app.localstack.cloud e gere o token para
       # rodar este serviço. Sem ele o container sobe e sai (exit 55, "License activation failed").
-      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:?defina LOCALSTACK_AUTH_TOKEN no ambiente antes de subir}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - localstack-data:/var/lib/localstack
