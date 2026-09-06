@@ -61,11 +61,11 @@ Arquitetura de **microsserviços orientada a eventos**, com comunicação assín
 
 | Microsserviço | Repositório | Tecnologias |
 |---|---|---|
-| **Users API** | [fgc-users-api](https://github.com/ronnam/fgc-users-api) | .NET 8, EF Core, SQLite, JWT, MassTransit, DynamoDB |
-| **Catalog API** | [fgc-catalog-api](https://github.com/ronnam/fgc-catalog-api) | .NET 8, EF Core, SQLite, JWT, MassTransit, DynamoDB, Redis |
-| **Payments API** | [fgc-payments-api](https://github.com/ronnam/fgc-payments-api) | .NET 8, MassTransit (scaffold) |
-| **Notifications Lambda** | [fgc-notifications-lambda](https://github.com/ronnam/fgc-notifications-lambda) | .NET 8, AWS SAM, Lambda, Amazon MQ, DynamoDB, API Gateway |
-| **Message Contracts** | [fgc-message-contracts](https://github.com/ronnam/fgc-message-contracts) | Pacote NuGet local de eventos |
+| **Users API** | [fgc-users-api](https://github.com/LeCaVeiRa/fgc-catalog-api) | .NET 8, EF Core, SQLite, JWT, MassTransit, DynamoDB |
+| **Catalog API** | [fgc-catalog-api](https://github.com/LeCaVeiRa/fgc-catalog-api) | .NET 8, EF Core, SQLite, JWT, MassTransit, DynamoDB, Redis |
+| **Payments API** | [fgc-payments-api](https://github.com/LeCaVeiRa/fgc-payments-api) | .NET 8, MassTransit (scaffold) |
+| **Notifications Lambda** | [fgc-notifications-lambda](https://github.com/LeCaVeiRa/fgc-notifications-lambda) | .NET 8, AWS SAM, Lambda, Amazon MQ, DynamoDB, API Gateway |
+| **Message Contracts** | [fgc-message-contracts](https://github.com/LeCaVeiRa/fgc-message-contracts) | Pacote NuGet local de eventos |
 | **Orquestração** | *(este repositório)* | Docker Compose, Kubernetes, Kong, Prometheus, Grafana |
 
 ---
