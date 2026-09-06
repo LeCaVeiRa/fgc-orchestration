@@ -10,7 +10,6 @@ Arquitetura de **microsserviços orientada a eventos**, com comunicação assín
 
 | Integrante | GitHub |
 |---|---|
-| Ronnam de Lima da Silva | [@ronnam](https://github.com/ronnam) |
 | Yan Santos Wendt | |
 
 ---
@@ -69,14 +68,13 @@ Arquitetura de **microsserviços orientada a eventos**, com comunicação assín
 | **Message Contracts** | [fgc-message-contracts](https://github.com/ronnam/fgc-message-contracts) | Pacote NuGet local de eventos |
 | **Orquestração** | *(este repositório)* | Docker Compose, Kubernetes, Kong, Prometheus, Grafana |
 
-> `fgc-notifications-api` (container antigo) foi descomissionado deste stack — o repositório permanece intocado como histórico, mas não sobe mais via `docker-compose`/k8s daqui.
-
 ---
 
 ## 🐳 Execução com Docker
 
 ### Pré-requisitos
 - [Docker](https://docs.docker.com/engine/install/) + Docker Compose
+- `LOCALSTACK_AUTH_TOKEN` definido em um `.env` neste repositório (gere uma conta gratuita em https://app.localstack.cloud) — sem ele, `docker-compose up` falha ao subir o serviço `localstack` (variável obrigatória no compose)
 
 ### Subir todos os serviços
 ```bash
@@ -94,6 +92,9 @@ Isso sobe:
 | dynamodb-local | 8500 (host) → 8000 (container) | DynamoDB local (log de eventos, `FgcEventLog`) |
 | redis | 6379 | Cache de `GET /games` |
 | localstack | 4566 | Emulação AWS (Lambda/DynamoDB/API Gateway) para `fgc-notifications-lambda` |
+| notifications-lambda-deploy | — | `samlocal build/deploy` de `fgc-notifications-lambda` contra o LocalStack (roda uma vez e sai, `restart: "no"`) |
+| notifications-lambda-logs | — | Acompanha logs das Lambdas no LocalStack (via docker.sock) |
+| notifications-lambda-bridge | — | Encaminha mensagens do RabbitMQ local para o `EventProcessor` (LocalStack não emula o event source mapping de Amazon MQ); atrás do profile `tools`, não sobe com `docker-compose up` sozinho — use `docker-compose --profile tools up -d notifications-lambda-bridge` |
 | kong | 8000\*/8443/8001 | API Gateway (proxy + Admin API) |
 | prometheus | 9090 | Métricas |
 | grafana | 3000 | Dashboards |
@@ -213,6 +214,7 @@ Matriz de rotas:
 | Users (admin) | `/admin/users/*` | JWT válido | Admin, dentro do serviço |
 | Catalog (leitura) | `GET /games*` | nenhuma | — |
 | Catalog (escrita) | `POST/PUT/DELETE /games*` | JWT válido | Admin, dentro do serviço |
+| Catalog (pedidos) | `/orders*` | JWT válido | dentro do serviço |
 | Notifications history | `GET /notifications` | JWT válido | Admin, dentro da Lambda |
 
 `GET /health` de cada serviço não é exposto pelo Kong (uso interno/direto no container).
@@ -232,5 +234,5 @@ Matriz de rotas:
 
 📄 **Relatório de Entrega**
 Grupo: Squad 8 – Turma 12NETT
-Participantes: Ronnam de Lima da Silva, Yan Santos Wendt
+Participantes: Yan Santos Wendt
 Repositórios: links na seção acima

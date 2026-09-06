@@ -72,9 +72,6 @@ services:
     image: amazon/dynamodb-local
     container_name: fgc-dynamodb-local
     ports:
-      # Host 8500 -> container 8000: porta 8000 do host já é do proxy do Kong. Os serviços .NET
-      # falam com este container pela rede interna (http://dynamodb-local:8000), então essa
-      # remapeamento só afeta acesso a partir do host (ex.: `aws dynamodb ... --endpoint-url`).
       - "8500:8000"
     command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
     networks:
@@ -105,10 +102,6 @@ services:
     networks:
       - fgc_network
 
-  # fgc-notifications-api foi descomissionado: a lógica de notificações agora roda como Lambda
-  # em fgc-notifications-lambda (ver README). O repositório antigo continua intocado, só não
-  # sobe mais junto com o resto do stack.
-
   localstack:
     image: localstack/localstack:latest
     container_name: fgc-localstack
@@ -117,13 +110,60 @@ services:
     environment:
       - SERVICES=lambda,dynamodb,apigateway,iam,cloudformation,logs,sts,cloudwatch,secretsmanager,mq
       - DOCKER_HOST=unix:///var/run/docker.sock
-      # Community edition ainda exige uma conta LocalStack gratuita para ativar (mesmo sem usar
-      # nenhum recurso Pro) - crie uma em https://app.localstack.cloud e gere o token para
-      # rodar este serviço. Sem ele o container sobe e sai (exit 55, "License activation failed").
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:?defina LOCALSTACK_AUTH_TOKEN no ambiente antes de subir}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - localstack-data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - fgc_network
+
+  notifications-lambda-deploy:
+    build:
+      context: ../fgc-notifications-lambda
+      dockerfile: deploy/Dockerfile
+    container_name: fgc-notifications-lambda-deploy
+    environment:
+      - LOCALSTACK_HOSTNAME=localstack
+      - JWT_KEY=FgcUsers-Auth-JWT-Key-2026-Strong-And-Secure
+    depends_on:
+      localstack:
+        condition: service_healthy
+    networks:
+      - fgc_network
+    restart: "no"
+
+  notifications-lambda-logs:
+    build:
+      context: ../fgc-notifications-lambda/deploy/logs
+      dockerfile: Dockerfile
+    container_name: fgc-notifications-lambda-logs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      notifications-lambda-deploy:
+        condition: service_completed_successfully
+    networks:
+      - fgc_network
+
+  notifications-lambda-bridge:
+    build:
+      context: ../fgc-notifications-lambda/deploy/bridge
+      dockerfile: Dockerfile
+    container_name: fgc-notifications-lambda-bridge
+    profiles:
+      - tools
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - LOCALSTACK_ENDPOINT=http://localstack:4566
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     networks:
       - fgc_network
 
@@ -140,11 +180,7 @@ services:
       - KONG_ADMIN_ACCESS_LOG=/dev/stdout
       - KONG_PROXY_ERROR_LOG=/dev/stderr
       - KONG_ADMIN_ERROR_LOG=/dev/stderr
-      # JWT_SECRET precisa bater com Jwt:Key em fgc-users-api/fgc-catalog-api (appsettings.json).
       - JWT_SECRET=FgcUsers-Auth-JWT-Key-2026-Strong-And-Secure
-      # Placeholder até `samlocal deploy` (ver fgc-notifications-lambda/README.md) imprimir a URL
-      # real da HistoryApi no LocalStack; depois disso, sobrescrever via fgc-orchestration/.env e
-      # `docker compose up -d --build kong` para regenerar o kong.yml com o endpoint real.
       - NOTIFICATIONS_HISTORY_URL=${NOTIFICATIONS_HISTORY_URL:-http://localstack:4566/restapis/PLACEHOLDER/local/_user_request_}
     volumes:
       - ./kong/kong.yml.template:/kong-src/kong.yml.template:ro

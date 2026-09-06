@@ -32,6 +32,11 @@ services:
         strip_path: false
         plugins:
           - name: jwt
+      - name: orders-authenticated
+        paths: ["/orders"]
+        strip_path: false
+        plugins:
+          - name: jwt
 
   - name: notifications-history
     # Dev: endpoint HTTP do LocalStack (API Gateway emulado, ver fgc-orchestration/docker-compose.yml).
