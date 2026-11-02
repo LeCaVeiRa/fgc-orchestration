@@ -30,11 +30,15 @@ services:
       - Jwt__Key=${JWT_KEY:?defina JWT_KEY no .env (copie de .env.example)}
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      # Atrás de proxy (Kong; ALB no EKS): honra X-Forwarded-For/Proto (middleware embutido do ASP.NET Core).
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
       - AWS__DynamoDB__ServiceUrl=http://dynamodb-local:8000
       - AWS_ACCESS_KEY_ID=local
       - AWS_SECRET_ACCESS_KEY=local
       - AWS_REGION=us-east-1
-      - Redis__ConnectionString=redis:6379
+      # Timeouts curtos: Redis fora do ar degrada para o banco em ~1s em vez de ~5s por operação.
+      # Na AWS (ElastiCache) a mesma string ganha ssl=true,password=... via Secret.
+      - Redis__ConnectionString=redis:6379,connectTimeout=1000,syncTimeout=1000,asyncTimeout=1000,abortConnect=false
       - ConnectionStrings__UserDb=Host=postgres;Port=5432;Database=fgc_users;Username=fgc;Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
     depends_on:
       postgres:
@@ -62,11 +66,15 @@ services:
       - Jwt__Key=${JWT_KEY:?defina JWT_KEY no .env (copie de .env.example)}
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      # Atrás de proxy (Kong; ALB no EKS): honra X-Forwarded-For/Proto (middleware embutido do ASP.NET Core).
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
       - AWS__DynamoDB__ServiceUrl=http://dynamodb-local:8000
       - AWS_ACCESS_KEY_ID=local
       - AWS_SECRET_ACCESS_KEY=local
       - AWS_REGION=us-east-1
-      - Redis__ConnectionString=redis:6379
+      # Timeouts curtos: Redis fora do ar degrada para o banco em ~1s em vez de ~5s por operação.
+      # Na AWS (ElastiCache) a mesma string ganha ssl=true,password=... via Secret.
+      - Redis__ConnectionString=redis:6379,connectTimeout=1000,syncTimeout=1000,asyncTimeout=1000,abortConnect=false
       - OpenSearch__Url=http://opensearch:9200
       - ConnectionStrings__CatalogDb=Host=postgres;Port=5432;Database=fgc_catalog;Username=fgc;Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
     depends_on:
@@ -152,6 +160,8 @@ services:
       - RabbitMq__Password=${RABBITMQ_PASSWORD:?defina RABBITMQ_PASSWORD no .env (copie de .env.example)}
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      # Atrás de proxy (Kong; ALB no EKS): honra X-Forwarded-For/Proto (middleware embutido do ASP.NET Core).
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
     depends_on:
       rabbitmq:
         condition: service_healthy
