@@ -1,13 +1,13 @@
 services:
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13.7-management
     container_name: fgc-rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?defina RABBITMQ_USER no .env (copie de .env.example)}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?defina RABBITMQ_PASSWORD no .env (copie de .env.example)}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 10s
@@ -25,6 +25,9 @@ services:
       - "5038:8080"
     environment:
       - RabbitMq__Host=rabbitmq
+      - RabbitMq__Username=${RABBITMQ_USER:?defina RABBITMQ_USER no .env (copie de .env.example)}
+      - RabbitMq__Password=${RABBITMQ_PASSWORD:?defina RABBITMQ_PASSWORD no .env (copie de .env.example)}
+      - Jwt__Key=${JWT_KEY:?defina JWT_KEY no .env (copie de .env.example)}
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - AWS__DynamoDB__ServiceUrl=http://dynamodb-local:8000
@@ -32,7 +35,7 @@ services:
       - AWS_SECRET_ACCESS_KEY=local
       - AWS_REGION=us-east-1
       - Redis__ConnectionString=redis:6379
-      - ConnectionStrings__UserDb=Host=postgres;Port=5432;Database=fgc_users;Username=fgc;Password=${POSTGRES_PASSWORD:-fgc_local_dev}
+      - ConnectionStrings__UserDb=Host=postgres;Port=5432;Database=fgc_users;Username=fgc;Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +57,9 @@ services:
       - "5070:8080"
     environment:
       - RabbitMq__Host=rabbitmq
+      - RabbitMq__Username=${RABBITMQ_USER:?defina RABBITMQ_USER no .env (copie de .env.example)}
+      - RabbitMq__Password=${RABBITMQ_PASSWORD:?defina RABBITMQ_PASSWORD no .env (copie de .env.example)}
+      - Jwt__Key=${JWT_KEY:?defina JWT_KEY no .env (copie de .env.example)}
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - AWS__DynamoDB__ServiceUrl=http://dynamodb-local:8000
@@ -62,7 +68,7 @@ services:
       - AWS_REGION=us-east-1
       - Redis__ConnectionString=redis:6379
       - OpenSearch__Url=http://opensearch:9200
-      - ConnectionStrings__CatalogDb=Host=postgres;Port=5432;Database=fgc_catalog;Username=fgc;Password=${POSTGRES_PASSWORD:-fgc_local_dev}
+      - ConnectionStrings__CatalogDb=Host=postgres;Port=5432;Database=fgc_catalog;Username=fgc;Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
     depends_on:
       opensearch:
         condition: service_healthy
@@ -78,7 +84,7 @@ services:
       - fgc_network
 
   dynamodb-local:
-    image: amazon/dynamodb-local
+    image: amazon/dynamodb-local:3.3.1
     container_name: fgc-dynamodb-local
     ports:
       - "8500:8000"
@@ -87,7 +93,7 @@ services:
       - fgc_network
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.11-alpine
     container_name: fgc-redis
     ports:
       - "6379:6379"
@@ -114,13 +120,13 @@ services:
       - fgc_network
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     container_name: fgc-postgres
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_USER=fgc
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-fgc_local_dev}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
       - POSTGRES_DB=postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -142,73 +148,10 @@ services:
       - "5050:8080"
     environment:
       - RabbitMq__Host=rabbitmq
+      - RabbitMq__Username=${RABBITMQ_USER:?defina RABBITMQ_USER no .env (copie de .env.example)}
+      - RabbitMq__Password=${RABBITMQ_PASSWORD:?defina RABBITMQ_PASSWORD no .env (copie de .env.example)}
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - fgc_network
-
-  localstack:
-    image: localstack/localstack:latest
-    container_name: fgc-localstack
-    ports:
-      - "4566:4566"
-    environment:
-      - SERVICES=lambda,dynamodb,apigateway,iam,cloudformation,logs,sts,cloudwatch,secretsmanager,mq
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:?defina LOCALSTACK_AUTH_TOKEN no ambiente antes de subir}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - localstack-data:/var/lib/localstack
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - fgc_network
-
-  notifications-lambda-deploy:
-    build:
-      context: ../fgc-notifications-lambda
-      dockerfile: deploy/Dockerfile
-    container_name: fgc-notifications-lambda-deploy
-    environment:
-      - LOCALSTACK_HOSTNAME=localstack
-      - JWT_KEY=FgcUsers-Auth-JWT-Key-2026-Strong-And-Secure
-    depends_on:
-      localstack:
-        condition: service_healthy
-    networks:
-      - fgc_network
-    restart: "no"
-
-  notifications-lambda-logs:
-    build:
-      context: ../fgc-notifications-lambda/deploy/logs
-      dockerfile: Dockerfile
-    container_name: fgc-notifications-lambda-logs
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    depends_on:
-      notifications-lambda-deploy:
-        condition: service_completed_successfully
-    networks:
-      - fgc_network
-
-  notifications-lambda-bridge:
-    build:
-      context: ../fgc-notifications-lambda/deploy/bridge
-      dockerfile: Dockerfile
-    container_name: fgc-notifications-lambda-bridge
-    profiles:
-      - tools
-    environment:
-      - RABBITMQ_HOST=rabbitmq
-      - LOCALSTACK_ENDPOINT=http://localstack:4566
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -228,8 +171,9 @@ services:
       - KONG_ADMIN_ACCESS_LOG=/dev/stdout
       - KONG_PROXY_ERROR_LOG=/dev/stderr
       - KONG_ADMIN_ERROR_LOG=/dev/stderr
-      - JWT_SECRET=FgcUsers-Auth-JWT-Key-2026-Strong-And-Secure
-      - NOTIFICATIONS_HISTORY_URL=${NOTIFICATIONS_HISTORY_URL:-http://localstack:4566/restapis/PLACEHOLDER/local/_user_request_}
+      - JWT_SECRET=${JWT_KEY:?defina JWT_KEY no .env (copie de .env.example)}
+      # Opcional: URL do HttpApi da Lambda (output HistoryApiUrl). Vazia = rota /notifications desligada.
+      - NOTIFICATIONS_HISTORY_URL=${NOTIFICATIONS_HISTORY_URL:-}
     volumes:
       - ./kong/kong.yml.template:/kong-src/kong.yml.template:ro
     ports:
@@ -243,7 +187,7 @@ services:
       - fgc_network
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     container_name: fgc-prometheus
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -256,11 +200,11 @@ services:
       - fgc-catalog-api
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.0
     container_name: fgc-grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:?defina GRAFANA_ADMIN_USER no .env (copie de .env.example)}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?defina GRAFANA_ADMIN_PASSWORD no .env (copie de .env.example)}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
@@ -277,4 +221,3 @@ networks:
 
 volumes:
   postgres-data:
-  localstack-data:

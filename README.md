@@ -74,7 +74,7 @@ Arquitetura de **microsserviços orientada a eventos**, com comunicação assín
 
 ### Pré-requisitos
 - [Docker](https://docs.docker.com/engine/install/) + Docker Compose
-- `LOCALSTACK_AUTH_TOKEN` definido em um `.env` neste repositório (gere uma conta gratuita em https://app.localstack.cloud) — sem ele, `docker-compose up` falha ao subir o serviço `localstack` (variável obrigatória no compose)
+- `.env` neste repositório (não versionado): `cp .env.example .env` e preencha os segredos (chave JWT, senhas do Postgres, RabbitMQ e Grafana). Sem eles o `docker-compose up` falha com a mensagem indicando a variável ausente — não há valores default.
 
 ### Subir todos os serviços
 ```bash
@@ -91,10 +91,8 @@ Isso sobe:
 | fgc-payments-api | 5050 | Processamento de pagamento (scaffold) |
 | dynamodb-local | 8500 (host) → 8000 (container) | DynamoDB local (log de eventos, `FgcEventLog`) |
 | redis | 6379 | Cache de `GET /games` |
-| localstack | 4566 | Emulação AWS (Lambda/DynamoDB/API Gateway) para `fgc-notifications-lambda` |
-| notifications-lambda-deploy | — | `samlocal build/deploy` de `fgc-notifications-lambda` contra o LocalStack (roda uma vez e sai, `restart: "no"`) |
-| notifications-lambda-logs | — | Acompanha logs das Lambdas no LocalStack (via docker.sock) |
-| notifications-lambda-bridge | — | Encaminha mensagens do RabbitMQ local para o `EventProcessor` (LocalStack não emula o event source mapping de Amazon MQ); atrás do profile `tools`, não sobe com `docker-compose up` sozinho — use `docker-compose --profile tools up -d notifications-lambda-bridge` |
+| postgres | 5432 | PostgreSQL (databases `fgc_users` e `fgc_catalog`) |
+| opensearch | 9200 | Busca de jogos (`GET /search`) |
 | kong | 8000\*/8443/8001 | API Gateway (proxy + Admin API) |
 | prometheus | 9090 | Métricas |
 | grafana | 3000 | Dashboards |
@@ -108,7 +106,7 @@ Parar tudo: `docker-compose down`
 - Todo tráfego de API deve passar pelo Kong: http://localhost:8000
 - Swagger Users API (direto, sem gateway): http://localhost:5038/swagger
 - Swagger Catalog API (direto, sem gateway): http://localhost:5070/swagger
-- RabbitMQ Management: http://localhost:15672 (admin/admin)
+- RabbitMQ Management: http://localhost:15672 (`RABBITMQ_USER`/`RABBITMQ_PASSWORD` do `.env`)
 - Kong Admin API: http://localhost:8001
 
 ---
@@ -192,7 +190,7 @@ cd fgc-notifications-lambda && dotnet test tests/Fgc.Notifications.Lambda.Tests
 `fgc-users-api` e `fgc-catalog-api` expõem métricas Prometheus em `GET /metrics` (via `prometheus-net.AspNetCore`, sem instrumentação manual). `docker-compose up -d --build` já sobe `prometheus` e `grafana` junto com o resto do stack.
 
 - Prometheus: http://localhost:9090 — alvos em http://localhost:9090/targets
-- Grafana: http://localhost:3000 (admin/admin) — dashboard "FGC Services" já provisionado
+- Grafana: http://localhost:3000 (`GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD` do `.env`) — dashboard "FGC Services" já provisionado
 
 PromQL usado nos 3 painéis do dashboard:
 - Latência p50/p95: `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job))`
@@ -203,7 +201,7 @@ PromQL usado nos 3 painéis do dashboard:
 
 ## 🚪 Kong API Gateway
 
-Configuração declarativa (DB-less) em `kong/kong.yml.template`. O container `kong` (imagem própria, `kong/Dockerfile`) gera `kong/kong.yml` em tempo de execução via `envsubst`, substituindo `NOTIFICATIONS_HISTORY_URL` (endpoint da HistoryApi — LocalStack em dev, API Gateway real em produção) e `JWT_SECRET` (mesma chave HS256 de `fgc-users-api`/`fgc-catalog-api`).
+Configuração declarativa (DB-less) em `kong/kong.yml.template`. O container `kong` (imagem própria, `kong/Dockerfile`) gera `kong/kong.yml` em tempo de execução via `envsubst`, substituindo `NOTIFICATIONS_HISTORY_URL` (endpoint da HistoryApi no API Gateway da AWS; opcional — vazia, a rota `/notifications` é removida) e `JWT_SECRET` (`JWT_KEY` do `.env`, mesma chave HS256 de `fgc-users-api`/`fgc-catalog-api`).
 
 Matriz de rotas:
 
@@ -213,6 +211,7 @@ Matriz de rotas:
 | Users (autenticado) | `/users/*` | JWT válido | dentro do serviço |
 | Users (admin) | `/admin/users/*` | JWT válido | Admin, dentro do serviço |
 | Catalog (leitura) | `GET /games*` | nenhuma | — |
+| Catalog (busca) | `GET /search?q=`, `GET /games/search?q=` | nenhuma | — |
 | Catalog (escrita) | `POST/PUT/DELETE /games*` | JWT válido | Admin, dentro do serviço |
 | Catalog (pedidos) | `/orders*` | JWT válido | dentro do serviço |
 | Notifications history | `GET /notifications` | JWT válido | Admin, dentro da Lambda |
@@ -226,9 +225,9 @@ Matriz de rotas:
 4. `POST http://localhost:8000/games` com token válido não-Admin → `200` do Kong, `403` do catalog-api.
 5. `POST http://localhost:8000/games` com token Admin → `201`.
 6. Repita 3-5 para `/admin/users`.
-7. Após `samlocal deploy` em `fgc-notifications-lambda` (ver o README daquele repositório), defina `NOTIFICATIONS_HISTORY_URL` no `.env` deste repositório com a URL real da HistoryApi no LocalStack e rode `docker compose up -d --build kong`; então `GET http://localhost:8000/notifications` com token Admin → `200`, com token não-Admin → `403` (vindo da própria Lambda).
+7. Após o deploy de `fgc-notifications-lambda` na AWS (ver o README daquele repositório), defina `NOTIFICATIONS_HISTORY_URL` no `.env` deste repositório com a URL da HistoryApi (output `HistoryApiUrl`) e rode `docker compose up -d --build kong`; então `GET http://localhost:8000/notifications` com token Admin → `200`, com token não-Admin → `403` (vindo da própria Lambda).
 
-> **Nota:** o container `localstack` (community edition) exige uma conta gratuita LocalStack para ativar — defina `LOCALSTACK_AUTH_TOKEN` no `.env` (gere em https://app.localstack.cloud) antes de subir esse serviço, senão ele sai com `exit 55 (License activation failed)`. Isso não bloqueia a verificação do `EventProcessorFunction`, que é feita por invocação direta (`sam local invoke`, ver `fgc-notifications-lambda/README.md`) — verificado nesta sessão com sucesso (401/403/200 na HistoryApi, e os 2 itens esperados gravados no DynamoDB a partir dos 3 eventos sintéticos).
+> **Nota:** o `EventProcessorFunction` é verificado localmente por invocação direta (`sam local invoke`, ver `fgc-notifications-lambda/README.md`); o trigger Amazon MQ → Lambda só existe na AWS.
 
 ---
 

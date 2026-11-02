@@ -43,10 +43,10 @@ services:
         plugins:
           - name: jwt
 
+  # BEGIN notifications-history
+  # URL do API Gateway da Lambda (output HistoryApiUrl do template.yaml em fgc-notifications-lambda),
+  # injetada via envsubst. Sem NOTIFICATIONS_HISTORY_URL o bloco inteiro é removido - ver kong/docker-entrypoint.sh.
   - name: notifications-history
-    # Dev: endpoint HTTP do LocalStack (API Gateway emulado, ver fgc-orchestration/docker-compose.yml).
-    # Produção: URL real do API Gateway (saída HistoryApiUrl do template.yaml em fgc-notifications-lambda),
-    # injetada via envsubst no NOTIFICATIONS_HISTORY_URL antes do Kong subir - ver kong/docker-entrypoint.sh.
     url: ${NOTIFICATIONS_HISTORY_URL}
     routes:
       - name: notifications-history-route
@@ -54,6 +54,7 @@ services:
         strip_path: false
         plugins:
           - name: jwt
+  # END notifications-history
 
 consumers:
   - username: fgc-platform

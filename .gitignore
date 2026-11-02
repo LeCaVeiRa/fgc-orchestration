@@ -426,3 +426,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Segredos locais
+.env
+.env.*
+!.env.example
