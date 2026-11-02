@@ -32,7 +32,10 @@ services:
       - AWS_SECRET_ACCESS_KEY=local
       - AWS_REGION=us-east-1
       - Redis__ConnectionString=redis:6379
+      - ConnectionStrings__UserDb=Host=postgres;Port=5432;Database=fgc_users;Username=fgc;Password=${POSTGRES_PASSWORD:-fgc_local_dev}
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       dynamodb-local:
@@ -58,7 +61,13 @@ services:
       - AWS_SECRET_ACCESS_KEY=local
       - AWS_REGION=us-east-1
       - Redis__ConnectionString=redis:6379
+      - OpenSearch__Url=http://opensearch:9200
+      - ConnectionStrings__CatalogDb=Host=postgres;Port=5432;Database=fgc_catalog;Username=fgc;Password=${POSTGRES_PASSWORD:-fgc_local_dev}
     depends_on:
+      opensearch:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       dynamodb-local:
@@ -82,6 +91,45 @@ services:
     container_name: fgc-redis
     ports:
       - "6379:6379"
+    networks:
+      - fgc_network
+
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    container_name: fgc-opensearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      # Dev: sem TLS/autenticação. Na AWS o domínio usa fine-grained access control (OpenSearch__Username/Password).
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - fgc_network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fgc-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=fgc
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-fgc_local_dev}
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fgc -d fgc_catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - fgc_network
 
@@ -228,4 +276,5 @@ networks:
     driver: bridge
 
 volumes:
+  postgres-data:
   localstack-data:

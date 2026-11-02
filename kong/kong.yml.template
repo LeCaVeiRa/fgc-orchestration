@@ -26,6 +26,11 @@ services:
         paths: ["/games"]
         methods: ["GET"]
         strip_path: false
+      # Busca fuzzy (OpenSearch). /games/search já cai em games-public; /search é o alias pedido no enunciado.
+      - name: search-public
+        paths: ["/search"]
+        methods: ["GET"]
+        strip_path: false
       - name: games-admin
         paths: ["/games"]
         methods: ["POST", "PUT", "DELETE"]
