@@ -1,0 +1,5 @@
+# Recursos de plataforma compartilhados pelos serviços (aplicar antes dos manifestos de cada repo).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cluster-secret-store.yaml

@@ -1,0 +1,16 @@
+# Kong DB-less no EKS: única porta de entrada (ALB -> Kong -> Services ClusterIP).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fgc
+labels:
+  - pairs:
+      app: fgc-kong
+resources:
+  - externalsecret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+images:
+  - name: fgc-kong
+    newName: 018157123503.dkr.ecr.us-east-2.amazonaws.com/fgc-kong
+    newTag: DEPLOY_TAG # substituído pelo deploy

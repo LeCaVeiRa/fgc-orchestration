@@ -51,7 +51,8 @@ services:
     routes:
       - name: notifications-history-route
         paths: ["/notifications"]
-        strip_path: false
+        # A URL do serviço (HistoryApiUrl) já termina em /notifications; sem strip o caminho duplicaria.
+        strip_path: true
         plugins:
           - name: jwt
   # END notifications-history

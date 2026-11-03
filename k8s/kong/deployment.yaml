@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fgc-kong
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: fgc-kong
+  template:
+    metadata:
+      labels:
+        app: fgc-kong
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # A imagem declara USER kong (nome); runAsNonRoot exige UID numérico para verificar.
+        runAsUser: 1000
+        runAsGroup: 1000
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: fgc-kong
+      # preStop + grace: o ALB leva alguns segundos para tirar o pod do target group.
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: kong
+          # Imagem própria (kong/Dockerfile): kong.yml.template embutido + entrypoint com envsubst.
+          image: fgc-kong
+          env:
+            - { name: KONG_DATABASE, value: "off" }
+            - { name: KONG_DNS_ORDER, value: "LAST,A,CNAME" } # upstreams são Services (registro A)
+            - { name: KONG_DECLARATIVE_CONFIG, value: /tmp/kong.yml }
+            - { name: KONG_PROXY_LISTEN, value: "0.0.0.0:8000" }
+            - { name: KONG_ADMIN_LISTEN, value: "off" } # Admin API não exposta no cluster
+            - { name: KONG_STATUS_LISTEN, value: "0.0.0.0:8100" }
+            - { name: KONG_PROXY_ACCESS_LOG, value: /dev/stdout }
+            - { name: KONG_PROXY_ERROR_LOG, value: /dev/stderr }
+            # Endereço real do cliente atrás do ALB.
+            - { name: KONG_TRUSTED_IPS, value: "0.0.0.0/0,::/0" }
+            - { name: KONG_REAL_IP_HEADER, value: X-Forwarded-For }
+          envFrom:
+            - secretRef:
+                name: fgc-kong-secret
+            # NOTIFICATIONS_HISTORY_URL (URL do HttpApi da Lambda), criado pelo deploy após o sam deploy.
+            # Ausente = rota /notifications desligada (ver kong/docker-entrypoint.sh).
+            - configMapRef:
+                name: fgc-kong-runtime
+                optional: true
+          ports:
+            - { name: proxy, containerPort: 8000 }
+            - { name: status, containerPort: 8100 }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "20"] }
+          readinessProbe:
+            httpGet: { path: /status/ready, port: status }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /status, port: status }
+            initialDelaySeconds: 15
+            periodSeconds: 20

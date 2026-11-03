@@ -1,0 +1,25 @@
+# ALB internet-facing (AWS Load Balancer Controller) apontando só para o Kong. Sem domínio/certificado
+# próprio no escopo acadêmico: listener HTTP:80 no DNS público do ALB.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fgc
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # Kong responde 404 em "/" (nenhuma rota) quando está saudável.
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/success-codes: "404"
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fgc-kong-proxy
+                port:
+                  name: proxy

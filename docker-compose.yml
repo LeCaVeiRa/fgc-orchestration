@@ -175,6 +175,9 @@ services:
     container_name: fgc-kong
     environment:
       - KONG_DATABASE=off
+      # Resolve upstreams por A antes de SRV: o DNS do Docker demora ~3s para responder SRV, e cada
+      # worker do nginx tem cache próprio - sem isso, requisições aleatórias levavam 3-4s.
+      - KONG_DNS_ORDER=LAST,A,CNAME
       - KONG_DECLARATIVE_CONFIG=/tmp/kong.yml
       - KONG_ADMIN_LISTEN=0.0.0.0:8001
       - KONG_PROXY_ACCESS_LOG=/dev/stdout
