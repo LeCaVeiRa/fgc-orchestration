@@ -92,7 +92,7 @@ Em produção roda na **AWS**: EKS, ECR, RDS, ElastiCache, OpenSearch Service, A
 | **Payments API** | [fgc-payments-api](https://github.com/LeCaVeiRa/fgc-payments-api) | .NET 8, MassTransit |
 | **Notifications Lambda** | [fgc-notifications-lambda](https://github.com/LeCaVeiRa/fgc-notifications-lambda) | .NET 8, AWS SAM, Lambda, Amazon MQ, DynamoDB, API Gateway |
 | **Message Contracts** | [fgc-message-contracts](https://github.com/LeCaVeiRa/fgc-message-contracts) | Pacote NuGet local de eventos |
-| **Infraestrutura** | [fgc-infra](../fgc-infra) | Terraform (VPC, EKS, RDS, ElastiCache, OpenSearch, DynamoDB, Amazon MQ, Secrets Manager, ECR) |
+| **Infraestrutura** | [fgc-infra](https://github.com/LeCaVeiRa/fgc-infra) | Terraform (VPC, EKS, RDS, ElastiCache, OpenSearch, DynamoDB, Amazon MQ, Secrets Manager, ECR) |
 | **Orquestração** | *(este repositório)* | Docker Compose, manifestos K8s do Kong e da plataforma, scripts de deploy na AWS, Prometheus, Grafana |
 
 ---
