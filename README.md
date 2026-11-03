@@ -3,7 +3,7 @@
 Plataforma de games educacionais desenvolvida como **Tech Challenge** da pós-graduação **Arquitetura de Sistemas .NET – FIAP**.
 
 Arquitetura de **microsserviços orientada a eventos**, com comunicação assíncrona via **RabbitMQ**/**Amazon MQ** e **MassTransit**, gateway único via **Kong**, observabilidade via **Prometheus + Grafana**, persistência poliglota (**PostgreSQL**, **DynamoDB**, **Redis**) e busca textual com **OpenSearch**.
-Em produção roda na **AWS**: EKS, ECR, RDS, ElastiCache, OpenSearch Service, Amazon MQ, Lambda e Secrets Manager, provisionados com **Terraform** ([fgc-infra](../fgc-infra)). O deploy é automatizado com **GitHub Actions**.
+Em produção roda na **AWS**: EKS, ECR, RDS, ElastiCache, OpenSearch Service, Amazon MQ, Lambda e Secrets Manager, provisionados com **Terraform** ([fgc-infra](https://github.com/LeCaVeiRa/fgc-infra)). O deploy é automatizado com **GitHub Actions**.
 
 ---
 
